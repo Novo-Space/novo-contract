@@ -5,9 +5,9 @@ import {console} from "forge-std/console.sol";
 import {stdStorage, StdStorage, Test} from "forge-std/Test.sol";
 
 import {Utils} from "./utils/Utils.sol";
-import "../Bridge.sol";
-import "../HLtoken.sol";
-import "../wERC20R.sol";
+import "../src/Bridge.sol";
+import "../src/HLtoken.sol";
+import "../src/wERC20R.sol";
 
 // To be continued
 contract BaseSetup is Test {
