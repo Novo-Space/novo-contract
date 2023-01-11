@@ -143,7 +143,7 @@ contract WhenAliceBridgeOut is WhenBridgingIn {
             bridgeContract.getwithdrawAmt(from, _erc20Contract),
             transferAmount
         );
-        vm.warp(1100);
+        vm.roll(15);
         bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
         assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
         assertEq(token.balanceOf(alice), mintAmount);
