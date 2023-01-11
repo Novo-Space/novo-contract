@@ -6,7 +6,7 @@ import "./wERC20R.sol";
 import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 
 contract Bridge {
-    uint256 public delayBlock = 12;
+    uint256 public delayBlock = 5;
     // map erc --> rev erc
     mapping(address => address) revTokenMap;
 
@@ -38,7 +38,7 @@ contract Bridge {
             rToken = new wERC20R(
                 string(abi.encodePacked("rev", underlying.name())),
                 string(abi.encodePacked("r-", underlying.symbol())),
-                10,
+                3,
                 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
             );
             revTokenMap[_erc20Contract] = address(rToken);
