@@ -79,6 +79,15 @@ contract Bridge {
         withdrawBalance[msg.sender][_erc20Contract].startBlock = block.number;
     }
 
+    function preWithdrawERC20(address _erc20Contract) public {
+        wERC20R rToken = wERC20R(revTokenMap[_erc20Contract]);
+        if (rToken.getRevertAmount(msg.sender) > 0) {
+            withdrawBalance[msg.sender][_erc20Contract].amt -= rToken
+                .getRevertAmount(msg.sender);
+            rToken.resetRevertAmount(msg.sender);
+        }
+    }
+
     function withdrawERC20(address _erc20Contract, uint256 amount) public {
         require(
             block.number >=
@@ -88,11 +97,7 @@ contract Bridge {
         );
         // check active bridge debt, if pass
         wERC20R rToken = wERC20R(revTokenMap[_erc20Contract]);
-        if (rToken.getRevertAmount(msg.sender) > 0) {
-            withdrawBalance[msg.sender][_erc20Contract].amt -= rToken
-                .getRevertAmount(msg.sender);
-            rToken.resetRevertAmount(msg.sender);
-        }
+
         require(
             withdrawBalance[msg.sender][_erc20Contract].amt -
                 rToken.getActiveBridgeDebt(msg.sender) >=

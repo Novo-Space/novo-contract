@@ -146,6 +146,7 @@ contract WhenAliceBridgeOut is WhenBridgingIn {
             transferAmount
         );
         vm.roll(6);
+        bridgeContract.preWithdrawERC20(_erc20Contract);
         bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
         assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
         assertEq(token.balanceOf(alice), mintAmount);
@@ -154,6 +155,138 @@ contract WhenAliceBridgeOut is WhenBridgingIn {
     function testBridgingOutWithFuzzing(uint64 transferAmount) public {
         vm.assume(transferAmount != 0);
         itBridgingOutCorrectly(
+            alice,
+            address(token),
+            transferAmount % maxTransferAmount
+        );
+    }
+}
+
+contract WhenFreezeDuringBridgeOut is WhenBridgingIn {
+    uint256 internal mintAmount = maxTransferAmount;
+    bytes32 claimId;
+
+    function setUp() public override {
+        WhenBridgingIn.setUp();
+        console.log("When Alice will bridge out funds, but tx got frozen");
+        token.mint(alice, mintAmount);
+    }
+
+    function Freeze(
+        address from,
+        address _erc20Contract,
+        uint256 transferAmount
+    ) public {
+        BridgeInToken(from, _erc20Contract, transferAmount);
+        wERC20R rToken = wERC20R(bridgeContract.getRev(_erc20Contract));
+        rToken.approve(address(bridgeContract), transferAmount);
+        bridgeContract.BridgeOut(_erc20Contract, transferAmount);
+        vm.stopPrank();
+        vm.startPrank(governance);
+        claimId = rToken.freeze(block.number / 1000, from, 0);
+    }
+
+    function itCantWithdrawOnceFreeze(
+        address from,
+        address _erc20Contract,
+        uint256 transferAmount
+    ) public {
+        Freeze(from, _erc20Contract, transferAmount);
+        wERC20R rToken = wERC20R(bridgeContract.getRev(_erc20Contract));
+        assertEq(rToken.balanceOf(address(bridgeContract)), transferAmount);
+        vm.roll(6);
+        vm.stopPrank();
+        vm.startPrank(alice);
+        bridgeContract.preWithdrawERC20(_erc20Contract);
+        vm.expectRevert(
+            abi.encodePacked(
+                "withdraw amt exceeded (take account of frozen asset)"
+            )
+        );
+        bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
+    }
+
+    function testCantWithdrawOnceFreeze(uint64 transferAmount) public {
+        vm.assume(transferAmount != 0);
+        itCantWithdrawOnceFreeze(
+            alice,
+            address(token),
+            transferAmount % maxTransferAmount
+        );
+    }
+
+    function itRevertOnceFreeze(
+        address from,
+        address _erc20Contract,
+        uint256 transferAmount
+    ) public {
+        Freeze(from, _erc20Contract, transferAmount);
+        vm.roll(2);
+        assertEq(
+            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            transferAmount
+        );
+        wERC20R rToken = wERC20R(bridgeContract.getRev(_erc20Contract));
+        assertEq(rToken.balanceOf(address(bridgeContract)), transferAmount);
+        rToken.reverse(claimId);
+        vm.roll(6);
+        assertEq(rToken.balanceOf(address(bridgeContract)), 0);
+        assertEq(
+            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            transferAmount
+        );
+        vm.stopPrank();
+        vm.startPrank(alice);
+        assertEq(
+            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            transferAmount
+        );
+        bridgeContract.preWithdrawERC20(_erc20Contract);
+        assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
+        vm.expectRevert(
+            abi.encodePacked(
+                "withdraw amt exceeded (take account of frozen asset)"
+            )
+        );
+        bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
+        assertEq(token.balanceOf(alice), mintAmount - transferAmount);
+    }
+
+    function testRevertOnceFreeze(uint64 transferAmount) public {
+        vm.assume(transferAmount != 0);
+        itRevertOnceFreeze(
+            alice,
+            address(token),
+            transferAmount % maxTransferAmount
+        );
+    }
+
+    function itRejRevertOnceFreeze(
+        address from,
+        address _erc20Contract,
+        uint256 transferAmount
+    ) public {
+        Freeze(from, _erc20Contract, transferAmount);
+        vm.roll(2);
+        wERC20R rToken = wERC20R(bridgeContract.getRev(_erc20Contract));
+        rToken.rejectReverse(claimId);
+        vm.roll(6);
+        vm.stopPrank();
+        vm.startPrank(alice);
+        assertEq(
+            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            transferAmount
+        );
+        assertEq(rToken.balanceOf(address(bridgeContract)), transferAmount);
+        bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
+        assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
+        assertEq(rToken.balanceOf(address(bridgeContract)), 0);
+        assertEq(token.balanceOf(alice), mintAmount);
+    }
+
+    function testRejRevertOnceFreeze(uint64 transferAmount) public {
+        vm.assume(transferAmount != 0);
+        itRejRevertOnceFreeze(
             alice,
             address(token),
             transferAmount % maxTransferAmount
