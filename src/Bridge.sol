@@ -6,7 +6,7 @@ import "./wERC20R.sol";
 import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 
 contract Bridge {
-    uint256 public delayBlock = 5;
+    uint256 private delayBlock;
     // map erc --> rev erc
     mapping(address => address) revTokenMap;
 
@@ -20,12 +20,24 @@ contract Bridge {
     }
     //map wallet --> erc20 --> withdrawinfo
     mapping(address => mapping(address => withdrawInfo)) withdrawBalance;
+    uint256 private numReversibleBlocks;
+    address private governanceContract;
 
     function getwithdrawAmt(
         address from,
         address _erc20Contract
     ) public view returns (uint256) {
         return withdrawBalance[from][_erc20Contract].amt;
+    }
+
+    constructor(
+        uint256 _numReversibleBlocks,
+        uint256 _delayBlock,
+        address _governanceContract
+    ) {
+        delayBlock = _delayBlock;
+        numReversibleBlocks = _numReversibleBlocks;
+        governanceContract = _governanceContract;
     }
 
     // deposit erc20 to get werc20R
@@ -38,8 +50,8 @@ contract Bridge {
             rToken = new wERC20R(
                 string(abi.encodePacked("rev", underlying.name())),
                 string(abi.encodePacked("r-", underlying.symbol())),
-                3,
-                0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+                numReversibleBlocks,
+                governanceContract
             );
             revTokenMap[_erc20Contract] = address(rToken);
         } else {
@@ -55,7 +67,9 @@ contract Bridge {
         // Create a reference to the corresponding rToken contract, like rDAI
         wERC20R rToken = wERC20R(revTokenMap[_erc20Contract]);
         require(rToken.balanceOf(msg.sender) >= amount, "Not enough rtoken");
-        rToken.burn(msg.sender, amount);
+        rToken.transferFrom(msg.sender, address(this), amount);
+
+        // burn(msg.sender, amount);
 
         if (withdrawBalance[msg.sender][_erc20Contract].amt == 0) {
             withdrawBalance[msg.sender][_erc20Contract].amt = amount;
@@ -72,11 +86,21 @@ contract Bridge {
                     delayBlock,
             "Time (Block) doesn't pass enough yet"
         );
+        // check active bridge debt, if pass
+        wERC20R rToken = wERC20R(revTokenMap[_erc20Contract]);
+        if (rToken.getRevertAmount(msg.sender) > 0) {
+            withdrawBalance[msg.sender][_erc20Contract].amt -= rToken
+                .getRevertAmount(msg.sender);
+            rToken.resetRevertAmount(msg.sender);
+        }
         require(
-            withdrawBalance[msg.sender][_erc20Contract].amt >= amount,
-            "withdraw amt exceeded"
+            withdrawBalance[msg.sender][_erc20Contract].amt -
+                rToken.getActiveBridgeDebt(msg.sender) >=
+                amount,
+            "withdraw amt exceeded (take account of frozen asset)"
         );
-
+        // burn rToken
+        rToken.burn(address(this), amount);
         ERC20 underlying = ERC20(_erc20Contract);
         withdrawBalance[msg.sender][_erc20Contract].amt -= amount;
         underlying.transfer(msg.sender, amount);

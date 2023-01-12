@@ -9,6 +9,6 @@ contract MyScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        new Bridge();
+        new Bridge(3, 5, 0x83874a4d8ceEB714632747AE00B954B0B71CBD0b);
     }
 }

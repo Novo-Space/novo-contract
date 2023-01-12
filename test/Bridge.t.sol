@@ -16,15 +16,16 @@ contract BaseSetup is Test {
     Utils internal utils;
     address payable[] internal users;
 
+    address internal governance;
     address internal alice;
-    address internal bob;
 
     function setUp() public virtual {
         utils = new Utils();
         users = utils.createUsers(2);
-        bridgeContract = new Bridge();
+        governance = vm.addr(0x1);
+        bridgeContract = new Bridge(3, 5, governance);
         token = new HLtoken("HackLodge", "HL");
-        alice = vm.addr(0x1);
+        alice = vm.addr(0x2);
     }
 }
 
@@ -135,6 +136,7 @@ contract WhenAliceBridgeOut is WhenBridgingIn {
         BridgeInToken(from, _erc20Contract, transferAmount);
         wERC20R rToken = wERC20R(bridgeContract.getRev(_erc20Contract));
         assertEq(rToken.balanceOf(from), transferAmount);
+        rToken.approve(address(bridgeContract), transferAmount);
         bridgeContract.BridgeOut(_erc20Contract, transferAmount);
         assertEq(rToken.balanceOf(from), 0);
         assertEq(token.balanceOf(from), mintAmount - transferAmount);

@@ -17,13 +17,13 @@ contract wERC20R is ERC20R {
         bridgeContract = msg.sender;
     }
 
-    modifier onlyBridge() {
-        require(
-            bridgeContract == msg.sender,
-            "wERC20R: only the bridge can trigger this method!"
-        );
-        _;
-    }
+    // modifier onlyBridge() {
+    //     require(
+    //         bridgeContract == msg.sender,
+    //         "wERC20R: only the bridge can trigger this method!"
+    //     );
+    //     _;
+    // }
 
     function mint(address account, uint256 amount) public virtual onlyBridge {
         _mint(account, amount);

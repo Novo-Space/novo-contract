@@ -21,14 +21,29 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
     mapping(address => uint256) private _balances;
     mapping(address => uint256) public frozen;
     mapping(uint256 => mapping(address => Spenditure[])) private _spenditures;
-    mapping(bytes32 => Debt[]) private _claimToDebts;
+    mapping(bytes32 => Debt[]) public _claimToDebts;
+    // keep track of frozen asset in bridge
+    mapping(address => uint256) private activeBridgeDebt;
+    // keep track of revert token back from bridge
+    mapping(address => uint256) private revertAmount;
+    //
+
     mapping(uint256 => uint256) private _numAddressesInEpoch;
     mapping(uint256 => mapping(address => Burn[])) private _burns;
-
+    //add on
+    address private bridgeContract;
+    //
     modifier onlyGovernance() {
         require(
             msg.sender == _governanceContract,
             "ERC721R: Unauthorized call."
+        );
+        _;
+    }
+    modifier onlyBridge() {
+        require(
+            bridgeContract == msg.sender,
+            "wERC20R: only the bridge can trigger this method!"
         );
         _;
     }
@@ -96,6 +111,19 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
      * All two of these values are immutable: they can only be set once during
      * construction.
      */
+    // constructor(
+    //     string memory name_,
+    //     string memory symbol_,
+    //     uint256 reversiblePeriod_,
+    //     address governanceContract_
+    // ) {
+    //     _name = name_;
+    //     _symbol = symbol_;
+    //     NUM_REVERSIBLE_BLOCKS = reversiblePeriod_;
+    //     _governanceContract = governanceContract_;
+    // }
+
+    // new constructor
     constructor(
         string memory name_,
         string memory symbol_,
@@ -106,7 +134,10 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         _symbol = symbol_;
         NUM_REVERSIBLE_BLOCKS = reversiblePeriod_;
         _governanceContract = governanceContract_;
+        bridgeContract = msg.sender;
     }
+
+    //
 
     /*
     OTHER REGULAR ERC20 CONTRACT FUNCTIONS (FROM OPENZEPPELIN)
@@ -602,6 +633,15 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             frozen[addr] += toFreeze;
             if (toFreeze > 0)
                 _claimToDebts[claimID].push(Debt(addr, s.from, toFreeze));
+            //add bridge logic
+            if (addr == bridgeContract) {
+                if (activeBridgeDebt[s.from] == 0) {
+                    activeBridgeDebt[s.from] = toFreeze;
+                } else {
+                    activeBridgeDebt[s.from] += toFreeze;
+                }
+            }
+            //
             (bool zeroOrPositive, uint256 remaining) = oblig.get(addr).trySub(
                 toFreeze + _burnedSince(s)
             );
@@ -623,6 +663,23 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         );
     }
 
+    // return how much that account own the bridge
+    function getActiveBridgeDebt(address addr) public view returns (uint256) {
+        return activeBridgeDebt[addr];
+    }
+
+    // return revertAmount that Bridge loses
+    function getRevertAmount(address addr) public view returns (uint256) {
+        return revertAmount[addr];
+    }
+
+    // reset revertAmount
+    function resetRevertAmount(address addr) public onlyBridge {
+        revertAmount[addr] = 0;
+    }
+
+    //
+
     /**
     Called if the judges vote to reverse the transaction. Can only be called by governance contract
     */
@@ -633,6 +690,15 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             Debt storage s = _claimToDebts[claimID][i];
             frozen[s.from] -= s.amount;
             _transfer(s.from, s.to, s.amount);
+
+            // update bridge to reduce withdrawAmt
+            if (revertAmount[s.to] == 0) {
+                revertAmount[s.to] = s.amount;
+            } else {
+                revertAmount[s.to] += s.amount;
+            }
+            activeBridgeDebt[s.to] -= s.amount;
+            //
         }
         delete _claimToDebts[claimID];
         emit ReverseSuccessful(claimID);
@@ -646,6 +712,9 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         for (uint256 i = 0; i < _claimToDebts[claimID].length; i++) {
             Debt storage s = _claimToDebts[claimID][i];
             frozen[s.from] -= s.amount;
+            // update activeBridgeDebt to allow burning and exit
+            activeBridgeDebt[s.to] -= s.amount;
+            //
         }
         delete _claimToDebts[claimID];
         emit ReverseRejected(claimID);
