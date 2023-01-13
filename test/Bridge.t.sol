@@ -141,14 +141,18 @@ contract WhenAliceBridgeOut is WhenBridgingIn {
         assertEq(rToken.balanceOf(from), 0);
         assertEq(token.balanceOf(from), mintAmount - transferAmount);
         assertEq(token.balanceOf(address(bridgeContract)), transferAmount);
+        uint256 amt;
+        uint256 startBlock;
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
         assertEq(
-            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            amt,
             transferAmount
         );
         vm.roll(6);
         bridgeContract.preWithdrawERC20(_erc20Contract);
         bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
-        assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
+        assertEq(amt, 0);
         assertEq(token.balanceOf(alice), mintAmount);
     }
 
@@ -222,8 +226,12 @@ contract WhenFreezeDuringBridgeOut is WhenBridgingIn {
     ) public {
         Freeze(from, _erc20Contract, transferAmount);
         vm.roll(2);
+
+        uint256 amt;
+        uint256 startBlock;
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
         assertEq(
-            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            amt,
             transferAmount
         );
         wERC20R rToken = wERC20R(bridgeContract.getRev(_erc20Contract));
@@ -231,18 +239,22 @@ contract WhenFreezeDuringBridgeOut is WhenBridgingIn {
         rToken.reverse(claimId);
         vm.roll(6);
         assertEq(rToken.balanceOf(address(bridgeContract)), 0);
+
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
         assertEq(
-            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            amt,
             transferAmount
         );
         vm.stopPrank();
         vm.startPrank(alice);
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
         assertEq(
-            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            amt,
             transferAmount
         );
         bridgeContract.preWithdrawERC20(_erc20Contract);
-        assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
+        assertEq(amt, 0);
         vm.expectRevert(
             abi.encodePacked(
                 "withdraw amt exceeded (take account of frozen asset)"
@@ -273,13 +285,18 @@ contract WhenFreezeDuringBridgeOut is WhenBridgingIn {
         vm.roll(6);
         vm.stopPrank();
         vm.startPrank(alice);
+        uint256 amt;
+        uint256 startBlock;
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
+
         assertEq(
-            bridgeContract.getwithdrawAmt(from, _erc20Contract),
+            amt,
             transferAmount
         );
         assertEq(rToken.balanceOf(address(bridgeContract)), transferAmount);
         bridgeContract.withdrawERC20(_erc20Contract, transferAmount);
-        assertEq(bridgeContract.getwithdrawAmt(from, _erc20Contract), 0);
+        (amt, startBlock) = bridgeContract.getwithdrawInfo(from, _erc20Contract);
+        assertEq(amt, 0);
         assertEq(rToken.balanceOf(address(bridgeContract)), 0);
         assertEq(token.balanceOf(alice), mintAmount);
     }
