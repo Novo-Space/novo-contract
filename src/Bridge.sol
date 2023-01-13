@@ -79,6 +79,8 @@ contract Bridge {
         withdrawBalance[msg.sender][_erc20Contract].startBlock = block.number;
     }
 
+    // Nice to be called to update withdrawAmt but not calling this doesn't make
+    // withdrawERC20 exploitable.
     function preWithdrawERC20(address _erc20Contract) public {
         wERC20R rToken = wERC20R(revTokenMap[_erc20Contract]);
         if (rToken.getRevertAmount(msg.sender) > 0) {
@@ -100,10 +102,17 @@ contract Bridge {
 
         require(
             withdrawBalance[msg.sender][_erc20Contract].amt -
-                rToken.getActiveBridgeDebt(msg.sender) >=
+                rToken.getActiveBridgeDebt(msg.sender) -
+                rToken.getRevertAmount(msg.sender) >=
                 amount,
             "withdraw amt exceeded (take account of frozen asset)"
         );
+        // update revertAmount
+        if (rToken.getRevertAmount(msg.sender) > 0) {
+            withdrawBalance[msg.sender][_erc20Contract].amt -= rToken
+                .getRevertAmount(msg.sender);
+            rToken.resetRevertAmount(msg.sender);
+        }
         // burn rToken
         rToken.burn(address(this), amount);
         ERC20 underlying = ERC20(_erc20Contract);
