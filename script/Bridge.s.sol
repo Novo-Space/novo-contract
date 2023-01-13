@@ -26,7 +26,7 @@ contract GetNTokenAddresses is Script {
 
 
         ERC20 underlying = ERC20(usdc);
-        underlying.approve(usdc, 100);
+        underlying.approve(bridge, 100);
 
         bridgeContract.BridgeIn(usdc, 100);
 
