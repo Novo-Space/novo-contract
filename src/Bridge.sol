@@ -23,12 +23,14 @@ contract Bridge {
     uint256 private numReversibleBlocks;
     address private governanceContract;
 
-    function getwithdrawAmt(
+    function getwithdrawInfo(
         address from,
         address _erc20Contract
-    ) public view returns (uint256) {
-        return withdrawBalance[from][_erc20Contract].amt;
+    ) public view returns (uint256, uint256) {
+        return (withdrawBalance[from][_erc20Contract].amt, withdrawBalance[from][_erc20Contract].startBlock);
     }
+
+
 
     constructor(
         uint256 _numReversibleBlocks,

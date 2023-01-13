@@ -678,8 +678,6 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         revertAmount[addr] = 0;
     }
 
-    //
-
     /**
     Called if the judges vote to reverse the transaction. Can only be called by governance contract
     */
