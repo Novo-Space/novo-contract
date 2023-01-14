@@ -966,6 +966,15 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
     ) external view returns (Spenditure[] memory) {
         return _spenditures[epoch][from];
     }
+
+
+    function getDebtIMayOwe(address user) external view returns (DebtImayOwe[] memory) {
+        return _debtImayOwe[user];
+    }
+
+    function getDebtIMayGet(address user) external view returns (DebtImayGet[] memory) {
+        return _debtImayGet[user];
+    }
 }
 
 //used for address mapping for topological sort, and oblig mapping
