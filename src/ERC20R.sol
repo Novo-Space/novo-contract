@@ -20,9 +20,14 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
 
     mapping(address => uint256) private _balances;
     mapping(address => uint256) public frozen;
+    // add request = frozen
+    mapping(address => uint256) public request;
+
     mapping(uint256 => mapping(address => Spenditure[])) private _spenditures;
     mapping(bytes32 => Debt[]) private _claimToDebts;
 
+    // add claim to request
+    mapping(bytes32 => Request[]) private _claimToRequests;
     // keep track of how much possible money they may own the previous one
     mapping(address => DebtImayOwe[]) public _debtImayOwe;
     struct DebtImayOwe {
@@ -32,7 +37,7 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         address to;
         uint256 amount;
         bytes32 claimID;
-        // status = 0 wen pending judge, 1 when revert, 2 when revertRej
+        // status = 0 when requesting, 1 when pending judge, 2 when revert, 3 when revertRej
         uint status;
     }
     // keep track of how much possible money they may get from reverse tx
@@ -44,7 +49,7 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         address to;
         uint256 amount;
         bytes32 claimID;
-        // status = 0 wen pending judge, 1 when revert, 2 when revertRej
+        // status = 0 when requesting, 1 when pending judge, 2 when revert, 3 when revertRej
         uint status;
     }
     // Rn still no function to clean these variables.
@@ -100,6 +105,12 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         address to;
         uint256 amount;
     }
+    // Add Request struct
+    struct Request {
+        address from;
+        address to;
+        uint256 amount;
+    }
 
     struct Burn {
         uint256 blockNumber;
@@ -120,7 +131,8 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
     }
 
     event ClearedDataInTimeblock(uint256 length, uint256 blockNum);
-    event FreezeSuccessful(
+    event FreezeSuccessful(bytes32 claimID);
+    event RequestSuccessful(
         address from,
         address to,
         uint256 amount,
@@ -618,15 +630,11 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         }
     }
 
-    /* Assumes no cycles in spenditures for now.
-     * Can only be called by governance contract.
-     * Called if judges approve the freeze request.
-     */
-    function freeze(
+    function requestRevert(
         uint256 epoch,
         address from,
         uint256 index
-    ) public onlyGovernance returns (bytes32 claimID) {
+    ) public returns (bytes32 claimID) {
         // get transaction info
         uint256 epochLength = _spenditures[epoch][from].length;
         require(
@@ -643,7 +651,6 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
                 "ERC20R: specified transaction is no longer reversible."
             );
         }
-
         //in the future, we'd need an extra preprocessing step here for removing loops.
 
         TopoSortInfo memory t = _getTopologicalOrder(s);
@@ -657,32 +664,34 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         for (uint256 addrIndex = t.susPos; addrIndex > 0; --addrIndex) {
             address addr = t.orderedSuspects[addrIndex - 1];
 
-            uint256 toFreeze = oblig.get(addr).min(
+            uint256 toRequest = oblig.get(addr).min(
                 _balances[addr] - frozen[addr] //amount available to freeze in balance.
             );
 
-            frozen[addr] += toFreeze;
-            if (toFreeze > 0) {
-                _claimToDebts[claimID].push(Debt(addr, s.from, toFreeze));
+            request[addr] += toRequest;
+            if (toRequest > 0) {
+                _claimToRequests[claimID].push(
+                    Request(addr, s.from, toRequest)
+                );
                 _debtImayOwe[addr].push(
-                    DebtImayOwe(addr, s.from, toFreeze, claimID, 0)
+                    DebtImayOwe(addr, s.from, toRequest, claimID, 0)
                 );
                 _debtImayGet[s.from].push(
-                    DebtImayGet(addr, s.from, toFreeze, claimID, 0)
+                    DebtImayGet(addr, s.from, toRequest, claimID, 0)
                 );
 
-                //add bridge logic
-                if (addr == bridgeContract) {
-                    if (activeBridgeDebt[s.from] == 0) {
-                        activeBridgeDebt[s.from] = toFreeze;
-                    } else {
-                        activeBridgeDebt[s.from] += toFreeze;
-                    }
-                }
+                // //add bridge logic
+                // if (addr == bridgeContract) {
+                //     if (activeBridgeDebt[s.from] == 0) {
+                //         activeBridgeDebt[s.from] = toFreeze;
+                //     } else {
+                //         activeBridgeDebt[s.from] += toFreeze;
+                //     }
+                // }
             }
             //
             (bool zeroOrPositive, uint256 remaining) = oblig.get(addr).trySub(
-                toFreeze + _burnedSince(s)
+                toRequest + _burnedSince(s)
             );
             if (!zeroOrPositive || remaining == 0) {
                 continue;
@@ -691,8 +700,7 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
                 ObligInfo(oblig, addr, remaining, t.addressMap)
             );
         }
-        //hash the spenditure; this is the claim hash now.
-        emit FreezeSuccessful(
+        emit RequestSuccessful(
             from,
             s.to,
             s.amount,
@@ -700,6 +708,45 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             index,
             claimID
         );
+    }
+
+    /* Assumes no cycles in spenditures for now.
+     * Can only be called by governance contract.
+     * Called if judges approve the freeze request.
+     */
+    function freeze(bytes32 claimID) public onlyGovernance {
+        require(_claimToRequests[claimID].length > 0, "Invalid claimID.");
+        //go through all of _claimToRequests[tx_va0] to freeze
+        for (uint256 i = 0; i < _claimToRequests[claimID].length; i++) {
+            Request storage s = _claimToRequests[claimID][i];
+            request[s.from] -= s.amount;
+            frozen[s.from] += s.amount;
+
+            //add bridge logic
+            if (s.from == bridgeContract) {
+                if (activeBridgeDebt[s.from] == 0) {
+                    activeBridgeDebt[s.from] = s.amount;
+                } else {
+                    activeBridgeDebt[s.from] += s.amount;
+                }
+            }
+            //
+
+            // update DebtImayOwe and DebtImayGet to be frozen status
+            for (uint256 j = 0; j < _debtImayOwe[s.from].length; j++) {
+                if (_debtImayOwe[s.from][j].claimID == claimID) {
+                    _debtImayOwe[s.from][j].status = 1;
+                }
+            }
+            for (uint256 j = 0; j < _debtImayGet[s.to].length; j++) {
+                if (_debtImayGet[s.to][j].claimID == claimID) {
+                    _debtImayGet[s.to][j].status = 1;
+                }
+            }
+            //
+        }
+        delete _claimToRequests[claimID];
+        emit FreezeSuccessful(claimID);
     }
 
     // return how much that account own the bridge
@@ -742,12 +789,12 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             // update DebtImayOwe and DebtImayGet
             for (uint256 j = 0; j < _debtImayOwe[s.from].length; j++) {
                 if (_debtImayOwe[s.from][j].claimID == claimID) {
-                    _debtImayOwe[s.from][j].status = 1;
+                    _debtImayOwe[s.from][j].status = 2;
                 }
             }
             for (uint256 j = 0; j < _debtImayGet[s.to].length; j++) {
                 if (_debtImayGet[s.to][j].claimID == claimID) {
-                    _debtImayGet[s.to][j].status = 1;
+                    _debtImayGet[s.to][j].status = 2;
                 }
             }
             //
@@ -772,12 +819,12 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             // update DebtImayOwe and DebtImayGet
             for (uint256 j = 0; j < _debtImayOwe[s.from].length; j++) {
                 if (_debtImayOwe[s.from][j].claimID == claimID) {
-                    _debtImayOwe[s.from][j].status = 2;
+                    _debtImayOwe[s.from][j].status = 3;
                 }
             }
             for (uint256 j = 0; j < _debtImayGet[s.to].length; j++) {
                 if (_debtImayGet[s.to][j].claimID == claimID) {
-                    _debtImayGet[s.to][j].status = 2;
+                    _debtImayGet[s.to][j].status = 3;
                 }
             }
             //
