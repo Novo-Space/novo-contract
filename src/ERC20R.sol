@@ -729,12 +729,14 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             _transfer(s.from, s.to, s.amount);
 
             // update bridge to reduce withdrawAmt
-            if (revertAmount[s.to] == 0) {
-                revertAmount[s.to] = s.amount;
-            } else {
-                revertAmount[s.to] += s.amount;
+            if (s.from == bridgeContract) {
+                if (revertAmount[s.to] == 0) {
+                    revertAmount[s.to] = s.amount;
+                } else {
+                    revertAmount[s.to] += s.amount;
+                }
+                activeBridgeDebt[s.to] -= s.amount;
             }
-            activeBridgeDebt[s.to] -= s.amount;
             //
 
             // update DebtImayOwe and DebtImayGet
@@ -763,7 +765,9 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             Debt storage s = _claimToDebts[claimID][i];
             frozen[s.from] -= s.amount;
             // update activeBridgeDebt to allow burning and exit
-            activeBridgeDebt[s.to] -= s.amount;
+            if (s.from == bridgeContract) {
+                activeBridgeDebt[s.to] -= s.amount;
+            }
             //
             // update DebtImayOwe and DebtImayGet
             for (uint256 j = 0; j < _debtImayOwe[s.from].length; j++) {
