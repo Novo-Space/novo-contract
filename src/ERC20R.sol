@@ -21,7 +21,35 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
     mapping(address => uint256) private _balances;
     mapping(address => uint256) public frozen;
     mapping(uint256 => mapping(address => Spenditure[])) private _spenditures;
-    mapping(bytes32 => Debt[]) public _claimToDebts;
+    mapping(bytes32 => Debt[]) private _claimToDebts;
+
+    // keep track of how much possible money they may own the previous one
+    mapping(address => DebtImayOwe[]) public _debtImayOwe;
+    struct DebtImayOwe {
+        // from = my address
+        address from;
+        // to = address I may owe to
+        address to;
+        uint256 amount;
+        bytes32 claimID;
+        // status = 0 wen pending judge, 1 when revert, 2 when revertRej
+        uint status;
+    }
+    // keep track of how much possible money they may get from reverse tx
+    mapping(address => DebtImayGet[]) public _debtImayGet;
+    struct DebtImayGet {
+        // from = the one I may get the debt from
+        address from;
+        // to = my address
+        address to;
+        uint256 amount;
+        bytes32 claimID;
+        // status = 0 wen pending judge, 1 when revert, 2 when revertRej
+        uint status;
+    }
+    // Rn still no function to clean these variables.
+    //
+
     // keep track of frozen asset in bridge
     mapping(address => uint256) private activeBridgeDebt;
     // keep track of revert token back from bridge
@@ -634,14 +662,22 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             );
 
             frozen[addr] += toFreeze;
-            if (toFreeze > 0)
+            if (toFreeze > 0) {
                 _claimToDebts[claimID].push(Debt(addr, s.from, toFreeze));
-            //add bridge logic
-            if (addr == bridgeContract) {
-                if (activeBridgeDebt[s.from] == 0) {
-                    activeBridgeDebt[s.from] = toFreeze;
-                } else {
-                    activeBridgeDebt[s.from] += toFreeze;
+                _debtImayOwe[addr].push(
+                    DebtImayOwe(addr, s.from, toFreeze, claimID, 0)
+                );
+                _debtImayGet[s.from].push(
+                    DebtImayGet(addr, s.from, toFreeze, claimID, 0)
+                );
+
+                //add bridge logic
+                if (addr == bridgeContract) {
+                    if (activeBridgeDebt[s.from] == 0) {
+                        activeBridgeDebt[s.from] = toFreeze;
+                    } else {
+                        activeBridgeDebt[s.from] += toFreeze;
+                    }
                 }
             }
             //
@@ -700,6 +736,19 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             }
             activeBridgeDebt[s.to] -= s.amount;
             //
+
+            // update DebtImayOwe and DebtImayGet
+            for (uint256 j = 0; j < _debtImayOwe[s.from].length; j++) {
+                if (_debtImayOwe[s.from][j].claimID == claimID) {
+                    _debtImayOwe[s.from][j].status = 1;
+                }
+            }
+            for (uint256 j = 0; j < _debtImayGet[s.to].length; j++) {
+                if (_debtImayGet[s.to][j].claimID == claimID) {
+                    _debtImayGet[s.to][j].status = 1;
+                }
+            }
+            //
         }
         delete _claimToDebts[claimID];
         emit ReverseSuccessful(claimID);
@@ -715,6 +764,18 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             frozen[s.from] -= s.amount;
             // update activeBridgeDebt to allow burning and exit
             activeBridgeDebt[s.to] -= s.amount;
+            //
+            // update DebtImayOwe and DebtImayGet
+            for (uint256 j = 0; j < _debtImayOwe[s.from].length; j++) {
+                if (_debtImayOwe[s.from][j].claimID == claimID) {
+                    _debtImayOwe[s.from][j].status = 2;
+                }
+            }
+            for (uint256 j = 0; j < _debtImayGet[s.to].length; j++) {
+                if (_debtImayGet[s.to][j].claimID == claimID) {
+                    _debtImayGet[s.to][j].status = 2;
+                }
+            }
             //
         }
         delete _claimToDebts[claimID];
