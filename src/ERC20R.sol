@@ -55,6 +55,7 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
 
     uint256 private _totalSupply;
     address private _governanceContract;
+    uint8 private _decimals;
 
     string private _name;
     string private _symbol;
@@ -128,12 +129,14 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
         string memory name_,
         string memory symbol_,
         uint256 reversiblePeriod_,
-        address governanceContract_
+        address governanceContract_,
+        uint8 decimals_
     ) {
         _name = name_;
         _symbol = symbol_;
         NUM_REVERSIBLE_BLOCKS = reversiblePeriod_;
         _governanceContract = governanceContract_;
+        _decimals = decimals_;
         bridgeContract = msg.sender;
     }
 
@@ -172,7 +175,7 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
      * {IERC20-balanceOf} and {IERC20-transfer}.
      */
     function decimals() public view virtual override returns (uint8) {
-        return 18;
+        return _decimals;
     }
 
     /**

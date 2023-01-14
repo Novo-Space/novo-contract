@@ -19,7 +19,8 @@ contract GetNTokenAddresses is Script {
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        address bridge = 0x01cf58e264d7578D4C67022c58A24CbC4C4a304E;
+        // TODO Replace
+        address bridge = 0xeC1BB74f5799811c0c1Bff94Ef76Fb40abccbE4a;
         Bridge bridgeContract = Bridge(bridge);
 
         address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -35,3 +36,26 @@ contract GetNTokenAddresses is Script {
         console.logAddress(rusdc);
     }
 }
+
+
+// contract PrintUSDC is Script {
+//     function run() external {
+
+//         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+//         vm.startBroadcast(deployerPrivateKey);
+//         address bridge = 0x01cf58e264d7578D4C67022c58A24CbC4C4a304E;
+//         Bridge bridgeContract = Bridge(bridge);
+
+//         address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+
+
+//         ERC20 underlying = ERC20(usdc);
+//         underlying.approve(bridge, 100);
+
+//         bridgeContract.BridgeIn(usdc, 100);
+
+//         address rusdc = bridgeContract.getRev(usdc);
+//         console.log("RUSDC");
+//         console.logAddress(rusdc);
+//     }
+// }

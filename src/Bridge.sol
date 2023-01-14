@@ -46,14 +46,16 @@ contract Bridge {
     function BridgeIn(address _erc20Contract, uint256 amount) public {
         // Create a reference to the underlying asset contract, like DAI.
         ERC20 underlying = ERC20(_erc20Contract);
+
         // Create a reference to the corresponding rToken contract, like rDAI
         wERC20R rToken;
         if (revTokenMap[_erc20Contract] == address(0)) {
             rToken = new wERC20R(
-                string(abi.encodePacked("rev", underlying.name())),
-                string(abi.encodePacked("r-", underlying.symbol())),
+                string(abi.encodePacked("Novo ", underlying.name())),
+                string(abi.encodePacked("N-", underlying.symbol())),
                 numReversibleBlocks,
-                governanceContract
+                governanceContract,
+                underlying.decimals()
             );
             revTokenMap[_erc20Contract] = address(rToken);
         } else {

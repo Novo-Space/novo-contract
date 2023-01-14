@@ -12,8 +12,9 @@ contract wERC20R is ERC20R {
         string memory name,
         string memory symbol,
         uint256 numReversibleBlocks,
-        address governanceContract
-    ) ERC20R(name, symbol, numReversibleBlocks, governanceContract) {
+        address governanceContract,
+        uint8 decimals
+    ) ERC20R(name, symbol, numReversibleBlocks, governanceContract, decimals) {
         bridgeContract = msg.sender;
     }
 
