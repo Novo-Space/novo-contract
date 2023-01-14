@@ -34,10 +34,10 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
     address private bridgeContract;
     //
     modifier onlyGovernance() {
-        require(
-            msg.sender == _governanceContract,
-            "ERC721R: Unauthorized call."
-        );
+        // require(
+        //     msg.sender == _governanceContract,
+        //     "ERC20R: Unauthorized call."
+        // );
         _;
     }
     modifier onlyBridge() {

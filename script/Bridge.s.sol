@@ -10,7 +10,7 @@ contract MyScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        new Bridge(3, 5, 0x83874a4d8ceEB714632747AE00B954B0B71CBD0b);
+        new Bridge(300, 300, 0x83874a4d8ceEB714632747AE00B954B0B71CBD0b);
     }
 }
 
@@ -20,7 +20,7 @@ contract GetNTokenAddresses is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         // TODO Replace
-        address bridge = 0xeC1BB74f5799811c0c1Bff94Ef76Fb40abccbE4a;
+        address bridge = 0x75b0B516B47A27b1819D21B26203Abf314d42CCE;
         Bridge bridgeContract = Bridge(bridge);
 
         address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
