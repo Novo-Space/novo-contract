@@ -721,7 +721,7 @@ contract ERC20R is Context, IERC20, IERC20Metadata {
             Request storage s = _claimToRequests[claimID][i];
             request[s.from] -= s.amount;
             frozen[s.from] += s.amount;
-
+            _claimToDebts[claimID].push(Debt(s.from, s.to, s.amount));
             //add bridge logic
             if (s.from == bridgeContract) {
                 if (activeBridgeDebt[s.from] == 0) {
